@@ -1,34 +1,36 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import InsightCard from '@/components/InsightCard';
-import { getLeadById } from '@/lib/data';
-import { analyzeLead } from '@/lib/openai';
+import { contacts } from "@/lib/data";
+import { generateInsight } from "@/lib/ai";
 
-export default async function LeadDetailPage({ params }: { params: { id: string } }) {
-  const lead = getLeadById(params.id);
-  if (!lead) notFound();
+export default async function LeadPage({ params }: any) {
+  const contact = contacts.find((c) => c.id === params.id);
 
-  const analysis = await analyzeLead(lead);
+  if (!contact) return <div>Not found</div>;
+
+  const insight = await generateInsight(contact);
 
   return (
-    <main className="min-h-screen bg-shell">
-      <div className="mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div>
-            <Link href="/" className="text-sm font-semibold text-slate-600 hover:text-slate-900">
-              ← Back to dashboard
-            </Link>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">
-              {lead.contact.first_name} {lead.contact.last_name} · {lead.company.name}
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              This view combines CRM metadata with notes from calls and meetings. In a real HubSpot connection, these can come from engagements, notes, calls and meeting objects if they exist in the account.
-            </p>
-          </div>
-        </div>
+    <div className="p-8">
+      <h1 className="text-xl font-bold mb-4">{contact.name}</h1>
 
-        <InsightCard lead={lead} analysis={analysis} />
+      <h2 className="font-semibold">Activity Timeline</h2>
+      <ul className="mb-6">
+        {contact.activities.map((a, i) => (
+          <li key={i}>
+            {a.type} — {a.note} ({a.daysAgo} days ago)
+          </li>
+        ))}
+      </ul>
+
+      <h2 className="font-semibold">AI Reasoning</h2>
+      <p className="mb-4">{insight.reasoning}</p>
+
+      <h2 className="font-semibold">Suggested Email</h2>
+      <pre className="bg-gray-100 p-4">{insight.email}</pre>
+
+      <div className="mt-4 flex gap-2">
+        <button className="bg-black text-white px-4 py-2">Approve</button>
+        <button className="border px-4 py-2">Regenerate</button>
       </div>
-    </main>
+    </div>
   );
 }
