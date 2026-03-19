@@ -9,7 +9,7 @@ import {
   getSignalDrivers,
   getSignalRecommendedAction,
 } from "@/lib/signals";
-import { buildICPFromDeals, normalizeDeals } from "@/lib/deals";
+import { estimatePipelineImpact } from "@/lib/pipeline";
 
 function getScoreColor(score: number) {
   if (score >= 80) return "text-green-600";
@@ -23,21 +23,8 @@ function getPriorityLabel(score: number) {
   return "Low Priority";
 }
 
-function getRevenueICP() {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const stored = localStorage.getItem("uploadedDeals");
-    if (!stored) return null;
-
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed) || parsed.length === 0) return null;
-
-    const normalized = normalizeDeals(parsed);
-    return buildICPFromDeals(normalized);
-  } catch {
-    return null;
-  }
+function formatCurrency(value: number) {
+  return `€${value.toLocaleString()}`;
 }
 
 export default function SignalPage({ params }: { params: { id: string } }) {
@@ -54,7 +41,7 @@ export default function SignalPage({ params }: { params: { id: string } }) {
   const emails = generateSignalEmails(signal);
   const recommendedAction = getSignalRecommendedAction(signal);
 
-  const icp = getRevenueICP();
+  const pipeline = estimatePipelineImpact(score);
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10 md:px-10">
@@ -72,11 +59,12 @@ export default function SignalPage({ params }: { params: { id: string } }) {
           </p>
         </div>
 
-        {/* TOP SCORE */}
+        {/* SCORE + PIPELINE */}
         <div className="mb-8 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
           <div className="grid gap-6 md:grid-cols-[320px_1fr] md:items-center">
             <div>
-              <p className="text-sm font-medium text-gray-500">Signal Score</p>
+              <p className="text-sm text-gray-500">Signal Score</p>
+
               <div className="mt-3 flex items-end gap-4">
                 <div className={`text-8xl font-bold ${getScoreColor(score)}`}>
                   {score}
@@ -86,11 +74,26 @@ export default function SignalPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              {/* 💰 PIPELINE IMPACT */}
+              <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-4">
+                <p className="text-xs uppercase text-green-700">
+                  Estimated pipeline impact
+                </p>
+
+                <p className="mt-2 text-2xl font-semibold text-green-900">
+                  {formatCurrency(pipeline.pipelineValue)}
+                </p>
+
+                <p className="mt-1 text-sm text-green-800">
+                  Based on your avg deal size and win rate
+                </p>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
                 <p className="text-xs text-gray-500 uppercase">
                   Recommended action
                 </p>
-                <p className="mt-2 text-lg font-semibold text-gray-900">
+                <p className="mt-2 text-lg font-semibold">
                   {recommendedAction.label}
                 </p>
                 <p className="mt-2 text-sm text-gray-600">
@@ -103,7 +106,7 @@ export default function SignalPage({ params }: { params: { id: string } }) {
               {reasons.slice(0, 4).map((reason, i) => (
                 <div
                   key={i}
-                  className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"
+                  className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm"
                 >
                   {reason}
                 </div>
@@ -112,58 +115,18 @@ export default function SignalPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* 🔥 NEW: REVENUE ICP SECTION */}
-        {icp && (
-          <div className="mb-8 rounded-2xl border border-green-200 bg-green-50 p-6">
-            <h2 className="text-lg font-semibold text-green-900">
-              Based on your actual revenue data
-            </h2>
-
-            <p className="mt-2 text-sm text-green-800">
-              Your best customers typically look like:
-            </p>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              <div className="rounded-xl bg-white p-4 border border-green-100">
-                <p className="text-xs text-gray-500">Industry</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {icp.industry}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white p-4 border border-green-100">
-                <p className="text-xs text-gray-500">Company size</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {icp.employeeBand}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-white p-4 border border-green-100">
-                <p className="text-xs text-gray-500">Buyer persona</p>
-                <p className="text-sm font-semibold text-gray-900">
-                  {icp.persona}
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm text-green-900">
-              → This company scores highly because it matches that pattern.
-            </p>
-          </div>
-        )}
-
-        {/* WHY NOW */}
+        {/* WHY */}
         <div className="mb-8 grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold">Why this opportunity now</h2>
+            <h2 className="text-lg font-semibold">Why this opportunity</h2>
 
             <div className="mt-4 bg-gray-50 p-4 rounded-xl">
-              <p className="text-sm text-gray-800">{reasoning}</p>
+              <p className="text-sm">{reasoning}</p>
             </div>
 
             <ul className="mt-4 space-y-2">
               {drivers.map((d, i) => (
-                <li key={i} className="text-sm text-gray-700">
+                <li key={i} className="text-sm">
                   • {d}
                 </li>
               ))}
@@ -172,7 +135,7 @@ export default function SignalPage({ params }: { params: { id: string } }) {
 
           <section className="rounded-2xl border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold">Trigger</h2>
-            <p className="mt-4 text-sm text-gray-800">{signal.signal}</p>
+            <p className="mt-4 text-sm">{signal.signal}</p>
           </section>
         </div>
 
@@ -182,7 +145,9 @@ export default function SignalPage({ params }: { params: { id: string } }) {
 
           <div className="mt-6 space-y-6">
             <div className="bg-gray-50 p-5 rounded-xl">
-              <pre className="text-sm whitespace-pre-wrap">{emails.email}</pre>
+              <pre className="text-sm whitespace-pre-wrap">
+                {emails.email}
+              </pre>
             </div>
 
             <div className="bg-gray-50 p-5 rounded-xl">
