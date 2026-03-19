@@ -1,45 +1,107 @@
-import { buildFallbackAnalysis } from '@/lib/scoring';
-import { LeadRecord, AnalysisResult } from '@/lib/types';
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { getLeadById } from "@/lib/data";
+import { getLeadScore, getPersona, getLeadState } from "@/lib/scoring";
+import { buildICP } from "@/lib/icp";
 
-export async function analyzeLead(record: LeadRecord): Promise<AnalysisResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+export default function LeadPage({ params }: { params: { id: string } }) {
+  const lead = getLeadById(params.id);
+  if (!lead) notFound();
 
-  if (!apiKey) {
-    return buildFallbackAnalysis(record);
-  }
+  const score = getLeadScore(lead);
+  const persona = getPersona(lead.title);
+  const state = getLeadState(lead);
 
-  const prompt = `You are an expert B2B SaaS SDR and RevOps strategist. Analyze this dormant CRM record and return strict JSON with these keys only: icp_fit, persona, state, angle, why_now, next_action, suggested_subject, email_body.\n\nICP definition:\n- B2B SaaS or adjacent software\n- 50 to 500 employees\n- Senior commercial, sales, revops, founder, or marketing leadership roles\n\nRules:\n- Use recent call notes, meeting notes and CRM notes if available\n- Be specific and commercially sharp\n- Do not invent factual company news beyond the provided data\n- why_now must be an array of 4 to 6 concise strings\n- email_body should be strong, natural, executive, and under 220 words\n\nRecord:\n${JSON.stringify(record, null, 2)}`;
+  const icp = buildICP([lead]);
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4.1-mini',
-      temperature: 0.4,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: 'You output valid JSON only.' },
-        { role: 'user', content: prompt }
-      ]
-    })
-  });
+  const reasons = [];
 
-  if (!response.ok) {
-    return buildFallbackAnalysis(record);
-  }
+  if (score >= 80) reasons.push("Strong ICP match");
+  if (persona === "Sales Leader") reasons.push("High-converting persona");
+  if (lead.lastContactedDays > 60)
+    reasons.push("Previously engaged but not followed up");
+  if (lead.companyData?.signal)
+    reasons.push(`Trigger: ${lead.companyData.signal}`);
+  if (lead.activity_1)
+    reasons.push("Recent meaningful activity or conversation");
 
-  const json = await response.json();
-  const content = json.choices?.[0]?.message?.content;
-  if (!content) {
-    return buildFallbackAnalysis(record);
-  }
+  return (
+    <main className="min-h-screen bg-gray-50 px-6 py-10">
+      <div className="mx-auto max-w-4xl">
 
-  try {
-    return JSON.parse(content) as AnalysisResult;
-  } catch {
-    return buildFallbackAnalysis(record);
-  }
+        <Link href="/" className="text-sm text-gray-500">
+          ← Back
+        </Link>
+
+        {/* TOP CARD */}
+        <div className="mt-4 rounded-2xl border bg-white p-6">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-semibold">{lead.name}</h1>
+              <p className="text-gray-600">{lead.title}</p>
+              <p className="text-sm text-gray-500 mt-1">{lead.company}</p>
+            </div>
+
+            <div className="text-right">
+              <p className="text-4xl font-bold text-green-600">{score}</p>
+              <p className="text-sm text-gray-500">Lead Score</p>
+            </div>
+          </div>
+        </div>
+
+        {/* WHY THIS LEAD */}
+        <div className="mt-6 rounded-2xl border bg-white p-6">
+          <h2 className="text-lg font-semibold mb-4">
+            Why this lead now
+          </h2>
+
+          <div className="grid gap-3">
+            {reasons.map((r, i) => (
+              <div
+                key={i}
+                className="bg-green-50 text-green-900 px-4 py-3 rounded-xl text-sm"
+              >
+                {r}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ACTIVITY */}
+        <div className="mt-6 rounded-2xl border bg-white p-6">
+          <h2 className="text-lg font-semibold mb-4">Activity</h2>
+
+          <div className="space-y-3 text-sm text-gray-700">
+            {lead.activity_1 && <p>• {lead.activity_1}</p>}
+            {lead.activity_2 && <p>• {lead.activity_2}</p>}
+            {lead.activity_3 && <p>• {lead.activity_3}</p>}
+          </div>
+        </div>
+
+        {/* EMAIL */}
+        <div className="mt-6 rounded-2xl border bg-white p-6">
+          <h2 className="text-lg font-semibold mb-4">Suggested email</h2>
+
+          <div className="bg-gray-50 p-4 rounded-xl text-sm leading-relaxed">
+            <p>Hi {lead.name.split(" ")[0]},</p>
+
+            <p className="mt-3">
+              Noticed {lead.company} is currently {lead.companyData?.signal?.toLowerCase()}.
+            </p>
+
+            <p className="mt-3">
+              We often see teams in this position sitting on warm pipeline that never gets properly reactivated.
+            </p>
+
+            <p className="mt-3">
+              Worth a quick chat on how to turn that into revenue?
+            </p>
+
+            <p className="mt-3">Best,</p>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  );
 }
