@@ -9,6 +9,7 @@ import {
   getSignalDrivers,
   getSignalRecommendedAction,
 } from "@/lib/signals";
+import { buildICPFromDeals, normalizeDeals } from "@/lib/deals";
 
 function getScoreColor(score: number) {
   if (score >= 80) return "text-green-600";
@@ -20,6 +21,23 @@ function getPriorityLabel(score: number) {
   if (score >= 80) return "High Priority";
   if (score >= 60) return "Medium Priority";
   return "Low Priority";
+}
+
+function getRevenueICP() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const stored = localStorage.getItem("uploadedDeals");
+    if (!stored) return null;
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+    const normalized = normalizeDeals(parsed);
+    return buildICPFromDeals(normalized);
+  } catch {
+    return null;
+  }
 }
 
 export default function SignalPage({ params }: { params: { id: string } }) {
@@ -35,6 +53,8 @@ export default function SignalPage({ params }: { params: { id: string } }) {
   const reasoning = getSignalReasoning(signal);
   const emails = generateSignalEmails(signal);
   const recommendedAction = getSignalRecommendedAction(signal);
+
+  const icp = getRevenueICP();
 
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-10 md:px-10">
@@ -52,37 +72,38 @@ export default function SignalPage({ params }: { params: { id: string } }) {
           </p>
         </div>
 
+        {/* TOP SCORE */}
         <div className="mb-8 rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
           <div className="grid gap-6 md:grid-cols-[320px_1fr] md:items-center">
             <div>
               <p className="text-sm font-medium text-gray-500">Signal Score</p>
               <div className="mt-3 flex items-end gap-4">
-                <div className={`text-8xl font-bold leading-none ${getScoreColor(score)}`}>
+                <div className={`text-8xl font-bold ${getScoreColor(score)}`}>
                   {score}
                 </div>
-                <div className="pb-3 text-2xl font-medium text-gray-700">
+                <div className="pb-3 text-2xl text-gray-700">
                   {getPriorityLabel(score)}
                 </div>
               </div>
 
               <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <p className="text-xs text-gray-500 uppercase">
                   Recommended action
                 </p>
                 <p className="mt-2 text-lg font-semibold text-gray-900">
                   {recommendedAction.label}
                 </p>
-                <p className="mt-2 text-sm leading-6 text-gray-600">
+                <p className="mt-2 text-sm text-gray-600">
                   {recommendedAction.reason}
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {reasons.slice(0, 4).map((reason, index) => (
+              {reasons.slice(0, 4).map((reason, i) => (
                 <div
-                  key={index}
-                  className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4 text-sm font-medium text-green-800"
+                  key={i}
+                  className="rounded-2xl border border-green-200 bg-green-50 p-4 text-sm text-green-800"
                 >
                   {reason}
                 </div>
@@ -91,144 +112,84 @@ export default function SignalPage({ params }: { params: { id: string } }) {
           </div>
         </div>
 
+        {/* 🔥 NEW: REVENUE ICP SECTION */}
+        {icp && (
+          <div className="mb-8 rounded-2xl border border-green-200 bg-green-50 p-6">
+            <h2 className="text-lg font-semibold text-green-900">
+              Based on your actual revenue data
+            </h2>
+
+            <p className="mt-2 text-sm text-green-800">
+              Your best customers typically look like:
+            </p>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl bg-white p-4 border border-green-100">
+                <p className="text-xs text-gray-500">Industry</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {icp.industry}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-white p-4 border border-green-100">
+                <p className="text-xs text-gray-500">Company size</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {icp.employeeBand}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-white p-4 border border-green-100">
+                <p className="text-xs text-gray-500">Buyer persona</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {icp.persona}
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-green-900">
+              → This company scores highly because it matches that pattern.
+            </p>
+          </div>
+        )}
+
+        {/* WHY NOW */}
         <div className="mb-8 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Why this opportunity now</h2>
+          <section className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Why this opportunity now</h2>
 
-            <div className="mt-4 rounded-2xl bg-gray-50 p-4">
-              <p className="text-sm leading-6 text-gray-800">{reasoning}</p>
+            <div className="mt-4 bg-gray-50 p-4 rounded-xl">
+              <p className="text-sm text-gray-800">{reasoning}</p>
             </div>
 
-            <div className="mt-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Priority drivers
-              </p>
-              <ul className="mt-3 space-y-3">
-                {drivers.map((driver, index) => (
-                  <li
-                    key={index}
-                    className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700"
-                  >
-                    {driver}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                Trigger detected
-              </p>
-              <p className="mt-2 text-sm font-medium text-gray-900">{signal.signal}</p>
-            </div>
+            <ul className="mt-4 space-y-2">
+              {drivers.map((d, i) => (
+                <li key={i} className="text-sm text-gray-700">
+                  • {d}
+                </li>
+              ))}
+            </ul>
           </section>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900">Company context</h2>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Industry
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900">{signal.industry}</p>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Company size
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900">
-                  {signal.employees} employees
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Persona
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900">{signal.persona}</p>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Location
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900">{signal.location}</p>
-              </div>
-            </div>
+          <section className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Trigger</h2>
+            <p className="mt-4 text-sm text-gray-800">{signal.signal}</p>
           </section>
         </div>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Outbound sequence</h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Short, trigger-based outreach for net-new pipeline creation.
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              {["3 days", "5 days", "7 days"].map((delay) => (
-                <button
-                  key={delay}
-                  className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-100"
-                >
-                  {delay}
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* EMAILS */}
+        <section className="rounded-2xl border bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold">Outbound</h2>
 
           <div className="mt-6 space-y-6">
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">
-                Email 1 · New outbound
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-5">
-                <div className="mb-4 text-xs text-gray-500">
-                  From: Stephen
-                  <br />
-                  To: {signal.persona} at {signal.company}
-                </div>
-
-                <pre className="whitespace-pre-wrap text-sm leading-7 text-gray-800">
-                  {emails.email}
-                </pre>
-              </div>
+            <div className="bg-gray-50 p-5 rounded-xl">
+              <pre className="text-sm whitespace-pre-wrap">{emails.email}</pre>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">
-                Email 2 · Follow-up
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-5">
-                <div className="mb-4 text-xs text-gray-500">
-                  From: Stephen
-                  <br />
-                  To: {signal.persona} at {signal.company}
-                </div>
-
-                <pre className="whitespace-pre-wrap text-sm leading-7 text-gray-800">
-                  {emails.followUpEmail}
-                </pre>
-              </div>
+            <div className="bg-gray-50 p-5 rounded-xl">
+              <pre className="text-sm whitespace-pre-wrap">
+                {emails.followUpEmail}
+              </pre>
             </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button className="rounded-lg bg-black px-4 py-2 text-sm text-white">
-              {recommendedAction.label}
-            </button>
-            <button className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700">
-              Edit emails
-            </button>
-            <button className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700">
-              Save for later
-            </button>
           </div>
         </section>
       </div>
