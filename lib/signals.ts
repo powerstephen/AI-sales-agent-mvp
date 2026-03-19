@@ -1,3 +1,5 @@
+import { scoreSignalWithRevenueICP } from "@/lib/revenueModel";
+
 export type Signal = {
   id: string;
   company: string;
@@ -68,43 +70,7 @@ function getEmployeeBand(size: number): string {
 }
 
 export function scoreSignal(signal: Signal) {
-  let score = 0;
-
-  if (signal.industry.toLowerCase().includes("saas")) score += 40;
-  else if (
-    signal.industry.toLowerCase().includes("software") ||
-    signal.industry.toLowerCase().includes("operations") ||
-    signal.industry.toLowerCase().includes("marketing")
-  ) {
-    score += 25;
-  }
-
-  const band = getEmployeeBand(signal.employees);
-  if (band === "50-200") score += 25;
-  else if (band === "201-500") score += 15;
-
-  if (
-    signal.persona.toLowerCase().includes("sales") ||
-    signal.persona.toLowerCase().includes("revops")
-  ) {
-    score += 25;
-  } else if (
-    signal.persona.toLowerCase().includes("founder") ||
-    signal.persona.toLowerCase().includes("marketing")
-  ) {
-    score += 12;
-  }
-
-  if (
-    signal.signal.toLowerCase().includes("hiring") ||
-    signal.signal.toLowerCase().includes("funding") ||
-    signal.signal.toLowerCase().includes("expanding") ||
-    signal.signal.toLowerCase().includes("launch")
-  ) {
-    score += 10;
-  }
-
-  return Math.min(score, 100);
+  return scoreSignalWithRevenueICP(signal);
 }
 
 export function getSignalReasons(signal: Signal) {
@@ -112,6 +78,12 @@ export function getSignalReasons(signal: Signal) {
 
   if (signal.industry.toLowerCase().includes("saas")) {
     reasons.push("Matches high-performing industry");
+  } else if (
+    signal.industry.toLowerCase().includes("software") ||
+    signal.industry.toLowerCase().includes("marketing") ||
+    signal.industry.toLowerCase().includes("operations")
+  ) {
+    reasons.push("Close to strong-performing software segment");
   }
 
   const band = getEmployeeBand(signal.employees);
